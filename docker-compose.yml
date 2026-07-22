@@ -1,0 +1,74 @@
+services:
+  # Redis for Celery broker
+  redis:
+    image: redis:7-alpine
+    container_name: ${DOCKER_PREFIX:-obsidian}-redis
+    restart: unless-stopped
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    networks:
+      - obsidian_network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # Qdrant vector storage
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    container_name: ${DOCKER_PREFIX:-obsidian}-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+    volumes:
+      - qdrant_storage:/qdrant/storage
+    networks:
+      - ${DOCKER_NETWORK:-obsidian_network}
+    environment:
+      - QDRANT__SERVICE__GRPC_PORT=${QDRANT_GRPC_PORT:-6334}
+    healthcheck:
+      test: curl -s http://localhost:6333/healthz | grep -q 'healthz check passed' || exit 1
+      interval: 30s
+      retries: 20
+      start_period: 30s
+
+  # Main application
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: ${DOCKER_PREFIX:-obsidian}-app
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+      - ${VAULT_PATH:-./vault}:/app/vault
+    ports:
+      - "${API_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - ${DOCKER_NETWORK:-obsidian_network}
+      - ${OLLAMA_NETWORK:-ollama_network}
+    depends_on:
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    command: ["python", "-c", "import time; time.sleep(999999)"]
+
+networks:
+  obsidian_network:
+    driver: bridge
+    name: ${DOCKER_NETWORK:-obsidian_network}
+  ollama_network:
+    external: true
+    name: ${OLLAMA_NETWORK:-ollama_network}
+
+volumes:
+  qdrant_storage:
