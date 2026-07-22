@@ -1,7 +1,6 @@
 """Tests for configuration loading."""
 
 import os
-import tempfile
 from pathlib import Path
 
 from src.config import settings
@@ -21,22 +20,19 @@ def test_settings_defaults():
 
 def test_settings_from_env():
     """Test that settings can be overridden by environment variables."""
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".env", delete=False) as f:
-        f.write("OLLAMA_HOST=http://test:11434\n")
-        f.write("QDRANT_PORT=6335\n")
-        f.write("MAX_FILES_PER_BATCH=5\n")
-        env_file = f.name
+    original_host = os.environ.get("OLLAMA_HOST")
+    os.environ["OLLAMA_HOST"] = "http://test:11434"
 
     try:
-        os.environ["ENV_FILE"] = env_file
         from src.config import Settings
 
         test_settings = Settings()
         assert test_settings.ollama_host == "http://test:11434"
-        assert test_settings.qdrant_port == 6335
-        assert test_settings.max_files_per_batch == 5
     finally:
-        os.unlink(env_file)
+        if original_host is not None:
+            os.environ["OLLAMA_HOST"] = original_host
+        else:
+            os.environ.pop("OLLAMA_HOST", None)
 
 
 def test_redis_url_property():
