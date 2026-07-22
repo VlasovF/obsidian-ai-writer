@@ -1,18 +1,20 @@
-.PHONY: help up down logs ps clean
+.PHONY: help up down logs ps clean health test lint format pre-commit
 
 help:
-	@echo "Awailable commands:"
-	@echo "  make up         - Up containes"
-	@echo "  make down       - Down contaienrs"
-	@echo "  make logs       - show logs"
-	@echo "  make ps         - show status"
-	@echo "  make clean      - stop and clean all"
-	@echo "  make health     - healthcheck"
+	@echo "Available commands:"
+	@echo "  make up          - Start all containers"
+	@echo "  make down        - Stop all containers"
+	@echo "  make logs        - Show logs of all containers"
+	@echo "  make ps          - Show container status"
+	@echo "  make clean       - Stop and remove containers, volumes"
+	@echo "  make health      - Check service health"
+	@echo "  make test        - Run tests"
+	@echo "  make lint        - Run ruff and mypy"
+	@echo "  make format      - Run ruff formatter"
+	@echo "  make pre-commit  - Install pre-commit hooks"
 
 up:
 	docker compose up -d
-	@echo "Containers up"
-	@echo "Check status: make ps"
 
 down:
 	docker compose down
@@ -25,7 +27,21 @@ ps:
 
 clean:
 	docker compose down -v
-	@echo "Containers and volumes deleted"
 
 health:
 	docker compose exec app python /app/scripts/healthcheck.py || true
+
+test:
+	docker compose run --rm app pytest tests/ -v
+
+lint:
+	docker compose run --rm app ruff check src/
+	docker compose run --rm app mypy src/
+
+format:
+	docker compose run --rm app ruff format src/
+
+pre-commit:
+	uv sync --dev
+	uv run pre-commit install
+	uv run pre-commit run --all-files
