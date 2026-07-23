@@ -16,7 +16,7 @@ services:
 
   # Qdrant vector storage
   qdrant:
-    image: qdrant/qdrant:v1.13.2
+    image: qdrant/qdrant:v1.18.0
     container_name: ${DOCKER_PREFIX:-obsidian}-qdrant
     restart: unless-stopped
     ports:
