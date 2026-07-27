@@ -29,17 +29,21 @@ clean:
 	docker compose down -v
 
 health:
-	docker compose exec app python /app/scripts/healthcheck.py || true
+	docker compose exec api python /app/scripts/healthcheck.py || true
 
 test:
-	docker compose run --rm app pytest tests/ -v
+	docker compose run --rm api pytest tests/ -v
 
 lint:
-	docker compose run --rm app ruff check src/
-	docker compose run --rm app mypy src/
+	docker compose run --rm api ruff check src/
+	docker compose run --rm api mypy src/
 
 format:
-	docker compose run --rm app ruff format src/
+	docker compose run --rm api ruff format src/
+
+fix:
+	docker compose run --rm api ruff check --fix src/
+	docker compose run --rm api ruff format src/
 
 pre-commit:
 	uv sync --dev

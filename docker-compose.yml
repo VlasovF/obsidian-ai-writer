@@ -1,5 +1,4 @@
 services:
-  # Redis for Celery broker
   redis:
     image: redis:7-alpine
     container_name: ${DOCKER_PREFIX:-obsidian}-redis
@@ -14,7 +13,6 @@ services:
       timeout: 3s
       retries: 5
 
-  # Qdrant vector storage
   qdrant:
     image: qdrant/qdrant:v1.18.0
     container_name: ${DOCKER_PREFIX:-obsidian}-qdrant
@@ -25,26 +23,24 @@ services:
     volumes:
       - qdrant_storage:/qdrant/storage
     networks:
-      - ${DOCKER_NETWORK:-obsidian_network}
+      - obsidian_network
     environment:
       - QDRANT__SERVICE__GRPC_PORT=${QDRANT_GRPC_PORT:-6334}
     healthcheck:
-      test: curl -s http://localhost:6333/healthz | grep -q 'healthz check passed' || exit 1
-      interval: 30s
-      retries: 20
-      start_period: 30s
+      test: ["CMD", "curl", "-f", "http://localhost:6333/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
-  # Main application
-  app:
+  api:
     build:
       context: .
-      dockerfile: docker/Dockerfile
-    container_name: ${DOCKER_PREFIX:-obsidian}-app
+      dockerfile: docker/Dockerfile.api
+    container_name: ${DOCKER_PREFIX:-obsidian}-api
     restart: unless-stopped
     volumes:
       - ./src:/app/src
-      - ./tests:/app/tests
-      - ./scripts:/app/scripts
       - ${VAULT_PATH:-./vault}:/app/vault
     ports:
       - "${API_PORT:-8000}:8000"
@@ -53,14 +49,57 @@ services:
     environment:
       - PYTHONPATH=/app
     networks:
-      - ${DOCKER_NETWORK:-obsidian_network}
-      - ${OLLAMA_NETWORK:-ollama_network}
+      - obsidian_network
+      - ollama_network
     depends_on:
       redis:
-        condition: service_started
+        condition: service_healthy
       qdrant:
         condition: service_started
-    command: ["python", "-c", "import time; time.sleep(999999)"]
+    command: ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+  worker:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.worker
+    container_name: ${DOCKER_PREFIX:-obsidian}-worker
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src
+      - ${VAULT_PATH:-./vault}:/app/vault
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - obsidian_network
+      - ollama_network
+    depends_on:
+      redis:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+    command: ["celery", "-A", "src.infrastructure.celery_app", "worker", "--loglevel=info", "-Q", "notes,index"]
+
+  beat:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.beat
+    container_name: ${DOCKER_PREFIX:-obsidian}-beat
+    restart: unless-stopped
+    volumes:
+      - ./src:/app/src
+    env_file:
+      - .env
+    environment:
+      - PYTHONPATH=/app
+    networks:
+      - obsidian_network
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["celery", "-A", "src.infrastructure.celery_app", "beat", "--loglevel=info", "--schedule=/app/celerybeat-schedule"]
+
 
 networks:
   obsidian_network:
