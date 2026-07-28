@@ -9,13 +9,13 @@ from src.config import settings
 def test_settings_defaults():
     """Test that settings have correct default values."""
     assert settings.ollama_host == "http://ollama:11434"
-    assert settings.ollama_embed_model == "mxbai-embed-large"
+    assert settings.ollama_embed_model == "mxbai-embed-large:335m"
     assert settings.qdrant_port == 6333
     assert settings.redis_port == 6379
     assert settings.max_files_per_batch == 10
     assert settings.similarity_threshold == 0.7
     assert settings.duplicate_threshold == 0.95
-    assert settings.embedding_dimension_min == 1000
+    assert settings.embedding_dimension_min == 1024
 
 
 def test_settings_from_env():

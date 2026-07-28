@@ -236,30 +236,36 @@ class QdrantClient:
         except Exception as e:
             raise QdrantError(f"Failed to delete point {point_id}: {str(e)}") from e
 
-    def get_point(self, point_id: str) -> dict[str, Any] | None:
+    def get_point(
+        self, point_id: str, is_uuid: bool = False, with_vectors: bool = True
+    ) -> dict[str, Any] | None:
         """Retrieve a point by ID.
 
         Args:
             point_id: Point identifier (string ID).
+            is_uuid: If True, point_id is already a UUID.
+            with_vectors: Whether to include vectors in response.
 
         Returns:
             Point data or None if not found.
-
-        Raises:
-            QdrantError: If operation fails.
         """
         try:
-            uuid_id = self._generate_uuid(point_id)
+            if is_uuid:
+                uuid_id = point_id
+            else:
+                uuid_id = self._generate_uuid(point_id)
+
             result = self.client.retrieve(
                 collection_name=self.collection_name,
                 ids=[uuid_id],
+                with_vectors=with_vectors,  # Важно!
             )
             if not result:
                 return None
             point = result[0]
             return {
                 "id": str(point.id),
-                "vector": point.vector,
+                "vector": point.vector,  # Теперь будет загружен
                 "payload": point.payload or {},
             }
         except Exception as e:
